@@ -144,7 +144,7 @@ int arrayList_delete_first(ArrayList *list)
     return arrayList_delete(list, 0);
 }
 
-int arrayList_set(ArrayList *list, const size_t idx, const void *item)
+int arrayList_set(ArrayList *list, size_t idx, const void *item)
 {
     if (!item || !list || idx >= list->size) {
         return EINVAL;
@@ -155,7 +155,7 @@ int arrayList_set(ArrayList *list, const size_t idx, const void *item)
     return 0;
 }
 
-int arrayList_insert(ArrayList *list, const size_t idx, const void *item)
+int arrayList_insert(ArrayList *list, size_t idx, const void *item)
 {
     if (!item || !list) {
         return EINVAL;
