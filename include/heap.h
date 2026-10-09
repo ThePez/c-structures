@@ -72,6 +72,14 @@ Heap *heap_from_list(const ArrayList *list, size_t memSize, HeapType type, Compa
 void heap_destroy(Heap *heap);
 
 /**
+ * @brief Gets the number of elements currently in the heap.
+ *
+ * @param heap The heap to query.
+ * @return The element count, or 0 if heap is NULL.
+ */
+size_t heap_size(const Heap *heap);
+
+/**
  * @brief Adds a copy of an item to the heap.
  *
  * O(log n) amortised. On failure the heap is left unchanged.
@@ -92,7 +100,7 @@ int heap_add(Heap *heap, const void *item);
  * @return 0 on success, EINVAL if heap or dest is NULL, or ENOENT if the heap
  *         is empty.
  */
-int heap_peek(Heap *heap, void *dest);
+int heap_peek(const Heap *heap, void *dest);
 
 /**
  * @brief Removes the top element and copies it into a caller-supplied buffer.

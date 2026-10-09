@@ -140,6 +140,15 @@ static void heap_bottom_up_construct(Heap *heap)
     }
 }
 
+size_t heap_size(const Heap *heap)
+{
+    if (!heap) {
+        return 0;
+    }
+
+    return arrayList_size(heap->data);
+}
+
 int heap_add(Heap *heap, const void *item)
 {
     if (!heap || !item) {
@@ -155,7 +164,7 @@ int heap_add(Heap *heap, const void *item)
     return 0;
 }
 
-int heap_peek(Heap *heap, void *dest)
+int heap_peek(const Heap *heap, void *dest)
 {
     if (!heap) {
         return EINVAL;
