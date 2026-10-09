@@ -62,6 +62,35 @@ size_t arrayList_size(const ArrayList *list)
     return list->size;
 }
 
+int arrayList_swap(ArrayList *list, size_t i, size_t j)
+{
+    if (!list) {
+        return EINVAL;
+    }
+
+    size_t size = list->size;
+    if (i >= size || j >= size) {
+        return EINVAL;
+    }
+
+    if (i == j) {
+        return 0;
+    }
+
+    // Element base addresses
+    size_t bytes = list->elementSize;
+    char *base_i = list->data + (i * bytes);
+    char *base_j = list->data + (j * bytes);
+
+    while (bytes--) {
+        char tmp = *base_i;
+        *base_i++ = *base_j;
+        *base_j++ = tmp;
+    }
+
+    return 0;
+}
+
 const void *arrayList_get(const ArrayList *list, size_t idx)
 {
     if (!list || idx >= list->size) {

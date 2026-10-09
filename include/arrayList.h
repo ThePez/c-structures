@@ -169,6 +169,20 @@ int arrayList_append(ArrayList *list, const void *item);
 int arrayList_set(ArrayList *list, size_t idx, const void *item);
 
 /**
+ * @brief Swaps the elements at two indices.
+ *
+ * Elements are exchanged byte for byte in place, so no allocation happens.
+ * Swapping an index with itself is a successful no-op.
+ *
+ * @param list The list to modify.
+ * @param i    Index of the first element, must be less than the list size.
+ * @param j    Index of the second element, must be less than the list size.
+ * @return 0 on success, or EINVAL if list is NULL or i or j is out of
+ *         range.
+ */
+int arrayList_swap(ArrayList *list, size_t i, size_t j);
+
+/**
  * @brief Creates an empty list.
  *
  * Elements are stored by value: inserted items are copied in, byte for byte.
