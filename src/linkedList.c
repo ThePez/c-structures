@@ -101,8 +101,12 @@ int linkedList_get_cpy(const LinkedList *list, size_t idx, void *dest)
 
 int linkedList_get_first_cpy(const LinkedList *list, void *dest)
 {
-    if (!list || !dest || !list->size) {
+    if (!list || !dest) {
         return EINVAL;
+    }
+
+    if (!list->size) {
+        return ENOENT;
     }
 
     memcpy(dest, list->head->data, list->elementSize);
@@ -111,8 +115,12 @@ int linkedList_get_first_cpy(const LinkedList *list, void *dest)
 
 int linkedList_get_last_cpy(const LinkedList *list, void *dest)
 {
-    if (!list || !dest || !list->size) {
+    if (!list || !dest) {
         return EINVAL;
+    }
+
+    if (!list->size) {
+        return ENOENT;
     }
 
     memcpy(dest, list->tail->data, list->elementSize);
@@ -149,8 +157,12 @@ int linkedList_delete(LinkedList *list, size_t idx)
 
 int linkedList_delete_first(LinkedList *list)
 {
-    if (!list || !list->size) {
+    if (!list) {
         return EINVAL;
+    }
+
+    if (!list->size) {
+        return ENOENT;
     }
 
     Node *next = list->head->next;
@@ -171,8 +183,12 @@ int linkedList_delete_first(LinkedList *list)
 
 int linkedList_delete_last(LinkedList *list)
 {
-    if (!list || !list->size) {
+    if (!list) {
         return EINVAL;
+    }
+
+    if (!list->size) {
+        return ENOENT;
     }
 
     Node *prev = list->tail->prev;

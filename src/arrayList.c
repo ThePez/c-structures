@@ -98,13 +98,25 @@ int arrayList_get_cpy(const ArrayList *list, size_t idx, void *dest)
 
 int arrayList_get_first_cpy(const ArrayList *list, void *dest)
 {
+    if (!list || !dest) {
+        return EINVAL;
+    }
+
+    if (!list->size) {
+        return ENOENT;
+    }
+
     return arrayList_get_cpy(list, 0, dest);
 }
 
 int arrayList_get_last_cpy(const ArrayList *list, void *dest)
 {
-    if (!list || !list->size) {
+    if (!list || !dest) {
         return EINVAL;
+    }
+
+    if (!list->size) {
+        return ENOENT;
     }
 
     return arrayList_get_cpy(list, list->size - 1, dest);
@@ -125,19 +137,31 @@ int arrayList_delete(ArrayList *list, size_t idx)
     return 0;
 }
 
+int arrayList_delete_first(ArrayList *list)
+{
+    if (!list) {
+        return EINVAL;
+    }
+
+    if (!list->size) {
+        return ENOENT;
+    }
+
+    return arrayList_delete(list, 0);
+}
+
 int arrayList_delete_last(ArrayList *list)
 {
-    if (!list || !list->size) {
+    if (!list) {
         return EINVAL;
+    }
+
+    if (!list->size) {
+        return ENOENT;
     }
 
     list->size--;
     return 0;
-}
-
-int arrayList_delete_first(ArrayList *list)
-{
-    return arrayList_delete(list, 0);
 }
 
 int arrayList_set(ArrayList *list, size_t idx, const void *item)

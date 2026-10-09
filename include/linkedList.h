@@ -74,8 +74,8 @@ int linkedList_get_cpy(const LinkedList *list, size_t idx, void *dest);
  *
  * @param list The list to read from.
  * @param dest Buffer to copy into, must hold at least one element.
- * @return 0 on success, or EINVAL if list or dest is NULL or the list
- *         is empty.
+ * @return 0 on success, EINVAL if list or dest is NULL, or ENOENT if
+ *         the list is empty.
  */
 int linkedList_get_first_cpy(const LinkedList *list, void *dest);
 
@@ -84,8 +84,8 @@ int linkedList_get_first_cpy(const LinkedList *list, void *dest);
  *
  * @param list The list to read from.
  * @param dest Buffer to copy into, must hold at least one element.
- * @return 0 on success, or EINVAL if list or dest is NULL or the list
- *         is empty.
+ * @return 0 on success, EINVAL if list or dest is NULL, or ENOENT if
+ *         the list is empty.
  */
 int linkedList_get_last_cpy(const LinkedList *list, void *dest);
 
@@ -110,7 +110,8 @@ int linkedList_delete(LinkedList *list, size_t idx);
  * invalid.
  *
  * @param list The list to remove from.
- * @return 0 on success, or EINVAL if list is NULL or empty.
+ * @return 0 on success, EINVAL if list is NULL, or ENOENT if the list is
+ *         empty.
  */
 int linkedList_delete_first(LinkedList *list);
 
@@ -121,7 +122,8 @@ int linkedList_delete_first(LinkedList *list);
  * invalid.
  *
  * @param list The list to remove from.
- * @return 0 on success, or EINVAL if list is NULL or empty.
+ * @return 0 on success, EINVAL if list is NULL, or ENOENT if the list is
+ *         empty.
  */
 int linkedList_delete_last(LinkedList *list);
 

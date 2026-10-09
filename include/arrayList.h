@@ -74,8 +74,8 @@ int arrayList_get_cpy(const ArrayList *list, size_t idx, void *dest);
  *
  * @param list The list to read from.
  * @param dest Buffer to copy into, must hold at least one element.
- * @return 0 on success, or EINVAL if list or dest is NULL or the list
- *         is empty.
+ * @return 0 on success, EINVAL if list or dest is NULL, or ENOENT if
+ *         the list is empty.
  */
 int arrayList_get_first_cpy(const ArrayList *list, void *dest);
 
@@ -84,8 +84,8 @@ int arrayList_get_first_cpy(const ArrayList *list, void *dest);
  *
  * @param list The list to read from.
  * @param dest Buffer to copy into, must hold at least one element.
- * @return 0 on success, or EINVAL if list or dest is NULL or the list
- *         is empty.
+ * @return 0 on success, EINVAL if list or dest is NULL, or ENOENT if
+ *         the list is empty.
  */
 int arrayList_get_last_cpy(const ArrayList *list, void *dest);
 
@@ -108,7 +108,8 @@ int arrayList_delete(ArrayList *list, size_t idx);
  * Remaining elements are shifted down by one, so this is O(n).
  *
  * @param list The list to remove from.
- * @return 0 on success, or EINVAL if list is NULL or empty.
+ * @return 0 on success, EINVAL if list is NULL, or ENOENT if the list is
+ *         empty.
  */
 int arrayList_delete_first(ArrayList *list);
 
