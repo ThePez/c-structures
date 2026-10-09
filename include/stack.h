@@ -43,8 +43,8 @@ int stack_push(Stack *stack, const void *item);
  * @param stack The stack to pop from.
  * @param dest  Buffer to copy the element into, must hold at least one
  *              element.
- * @return 0 on success, or EINVAL if stack or dest is NULL or the stack
- *         is empty.
+ * @return 0 on success, EINVAL if stack or dest is NULL, or ENOENT if
+ *         the stack is empty.
  */
 int stack_pop(Stack *stack, void *dest);
 
@@ -55,8 +55,8 @@ int stack_pop(Stack *stack, void *dest);
  * @param stack The stack to read from.
  * @param dest  Buffer to copy the element into, must hold at least one
  *              element.
- * @return 0 on success, or EINVAL if stack or dest is NULL or the stack
- *         is empty.
+ * @return 0 on success, EINVAL if stack or dest is NULL, or ENOENT if
+ *         the stack is empty.
  */
 int stack_peek(const Stack *stack, void *dest);
 
