@@ -127,12 +127,8 @@ int arrayList_delete(ArrayList *list, size_t idx)
 
 int arrayList_delete_last(ArrayList *list)
 {
-    if (!list) {
+    if (!list || !list->size) {
         return EINVAL;
-    }
-
-    if (list->size == 0) {
-        return ENOENT;
     }
 
     list->size--;
@@ -157,11 +153,7 @@ int arrayList_set(ArrayList *list, size_t idx, const void *item)
 
 int arrayList_insert(ArrayList *list, size_t idx, const void *item)
 {
-    if (!item || !list) {
-        return EINVAL;
-    }
-
-    if (idx > list->size) {
+    if (!item || !list || idx > list->size) {
         return EINVAL;
     }
 

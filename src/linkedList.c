@@ -9,17 +9,23 @@
 #include "linkedList.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
-#include <asm-generic/errno-base.h>
 
 typedef struct Node Node;
 
 struct Node {
     Node *next, *prev;
     char *data;
+    char *reserved; // Pads Node to a multiple of max_align_t
 };
+
+// The payload is stored directly after each Node, so sizeof(Node) must keep it
+// suitably aligned for any element type.
+_Static_assert(sizeof(Node) % _Alignof(max_align_t) == 0,
+               "Node must be padded so the payload after it is max-aligned");
 
 struct LinkedList {
     Node *head, *tail;
@@ -88,7 +94,7 @@ int linkedList_get_cpy(const LinkedList *list, size_t idx, void *dest)
         return EINVAL;
     }
 
-    Node *node = get_node((LinkedList *)list, idx);
+    Node *node = get_node(list, idx);
     memcpy(dest, node->data, list->elementSize);
     return 0;
 }
@@ -156,6 +162,10 @@ int linkedList_delete_first(LinkedList *list)
 
     free(head);
     list->size--;
+    if (!list->size) {
+        list->tail = NULL;
+    }
+
     return 0;
 }
 
@@ -174,6 +184,10 @@ int linkedList_delete_last(LinkedList *list)
 
     free(tail);
     list->size--;
+    if (!list->size) {
+        list->head = NULL;
+    }
+
     return 0;
 }
 
@@ -254,7 +268,8 @@ int linkedList_set(LinkedList *list, size_t idx, const void *item)
 
 LinkedList *linkedList_create(size_t memSize)
 {
-    if (memSize < 1) {
+    // Reject zero-size elements and sizes that would overflow node allocation
+    if (memSize < 1 || memSize > SIZE_MAX - sizeof(Node)) {
         return NULL;
     }
 
