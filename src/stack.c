@@ -9,63 +9,69 @@
 #include "stack.h"
 #include "arrayList.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <errno.h>
 
-struct Stack {
+typedef struct StackPriv {
+    Stack pub; // Must stay first
     ArrayList *data;
-};
+} StackPriv;
 
-size_t stack_size(const Stack *stack)
+#define PRIVATE(s)       ((StackPriv *)(s))
+#define CONST_PRIVATE(s) ((const StackPriv *)(s))
+
+static size_t size(const Stack *self)
 {
-    if (!stack) {
-        return 0;
-    }
-
-    return arrayList_size(stack->data);
+    assert(self != NULL);
+    const ArrayList *data = CONST_PRIVATE(self)->data;
+    return data->size(data);
 }
 
-int stack_push(Stack *stack, const void *item)
+static int empty(const Stack *self)
 {
-    if (!stack) {
-        return EINVAL;
-    }
-
-    return arrayList_append(stack->data, item);
+    assert(self != NULL);
+    const ArrayList *data = CONST_PRIVATE(self)->data;
+    return data->empty(data);
 }
 
-int stack_pop(Stack *stack, void *dest)
+static int push(Stack *self, const void *item)
 {
-    if (!stack) {
-        return EINVAL;
-    }
+    assert(self != NULL);
+    ArrayList *data = PRIVATE(self)->data;
+    return data->append(data, item);
+}
 
-    int error = arrayList_get_last_cpy(stack->data, dest);
+static int pop(Stack *self, void *dest)
+{
+    assert(self != NULL);
+    ArrayList *data = PRIVATE(self)->data;
+
+    int error = data->get_last_cpy(data, dest);
     if (error) {
         return error;
     }
 
-    return arrayList_delete_last(stack->data);
+    return data->delete_last(data);
 }
 
-int stack_peek(const Stack *stack, void *dest)
+static int peek(const Stack *self, void *dest)
 {
-    if (!stack) {
-        return EINVAL;
-    }
-
-    return arrayList_get_last_cpy(stack->data, dest);
+    assert(self != NULL);
+    const ArrayList *data = CONST_PRIVATE(self)->data;
+    return data->get_last_cpy(data, dest);
 }
 
-void stack_destroy(Stack *stack)
+static void destroy(Stack *self)
 {
-    if (!stack) {
+    if (!self) {
         return;
     }
 
-    arrayList_destroy(stack->data);
-    free(stack);
+    ArrayList *data = PRIVATE(self)->data;
+    data->destroy(data);
+    free(self);
 }
 
 Stack *stack_create(size_t memberSize)
@@ -76,12 +82,16 @@ Stack *stack_create(size_t memberSize)
         return NULL;
     }
 
-    Stack *stack = malloc(sizeof(Stack));
-    if (stack == NULL) {
-        arrayList_destroy(data);
+    StackPriv *self = malloc(sizeof(StackPriv));
+    if (self == NULL) {
+        data->destroy(data);
         return NULL;
     }
 
-    stack->data = data;
-    return stack;
+    self->data = data;
+
+    self->pub = (const Stack){
+        .size = size, .destroy = destroy, .peek = peek, .pop = pop, .push = push, .empty = empty};
+
+    return &self->pub;
 }

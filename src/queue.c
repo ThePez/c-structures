@@ -9,79 +9,94 @@
 #include "queue.h"
 #include "linkedList.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <errno.h>
 
-struct Queue {
+typedef struct QueuePriv {
+    Queue pub; // must stay first
     LinkedList *data;
-};
+} QueuePriv;
 
-size_t queue_size(const Queue *queue)
+#define PRIVATE(q)       ((QueuePriv *)(q))
+#define CONST_PRIVATE(q) ((const QueuePriv *)(q))
+
+static size_t size(const Queue *self)
 {
-    if (!queue) {
-        return 0;
-    }
-
-    return linkedList_size(queue->data);
+    assert(self != NULL);
+    const LinkedList *data = CONST_PRIVATE(self)->data;
+    return data->size(data);
 }
 
-int queue_enqueue(Queue *queue, const void *item)
+static int empty(const Queue *self)
 {
-    if (!queue) {
-        return EINVAL;
-    }
-
-    return linkedList_append(queue->data, item);
+    assert(self != NULL);
+    const LinkedList *data = CONST_PRIVATE(self)->data;
+    return data->empty(data);
 }
 
-int queue_dequeue(Queue *queue, void *dest)
+static int enqueue(Queue *self, const void *item)
 {
-    if (!queue) {
-        return EINVAL;
-    }
+    assert(self != NULL);
+    LinkedList *data = PRIVATE(self)->data;
+    return data->append(data, item);
+}
 
-    int error = linkedList_get_first_cpy(queue->data, dest);
+static int dequeue(Queue *self, void *dest)
+{
+    assert(self != NULL);
+    LinkedList *data = PRIVATE(self)->data;
+
+    int error = data->get_first_cpy(data, dest);
     if (error) {
         return error;
     }
 
-    return linkedList_delete_first(queue->data);
+    return data->delete_first(data);
 }
 
-int queue_peek(const Queue *queue, void *dest)
+static int peek(const Queue *self, void *dest)
 {
-    if (!queue) {
-        return EINVAL;
-    }
-
-    return linkedList_get_first_cpy(queue->data, dest);
+    assert(self != NULL);
+    const LinkedList *data = CONST_PRIVATE(self)->data;
+    return data->get_first_cpy(data, dest);
 }
 
-void queue_destroy(Queue *queue)
+static void destroy(Queue *self)
 {
-    if (!queue) {
+    if (!self) {
         return;
     }
 
-    linkedList_destroy(queue->data);
-    free(queue);
+    LinkedList *data = PRIVATE(self)->data;
+    data->destroy(data);
+    free(self);
 }
 
 Queue *queue_create(size_t memberSize)
 {
-
     LinkedList *data = linkedList_create(memberSize);
     if (!data) {
         return NULL;
     }
 
-    Queue *queue = malloc(sizeof(Queue));
-    if (queue == NULL) {
-        linkedList_destroy(data);
+    QueuePriv *self = malloc(sizeof(QueuePriv));
+    if (self == NULL) {
+        data->destroy(data);
         return NULL;
     }
 
-    queue->data = data;
-    return queue;
+    self->data = data;
+
+    self->pub = (const Queue){
+        .size = size,
+        .empty = empty,
+        .enqueue = enqueue,
+        .dequeue = dequeue,
+        .peek = peek,
+        .destroy = destroy,
+    };
+
+    return &self->pub;
 }

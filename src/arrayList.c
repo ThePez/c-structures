@@ -14,10 +14,9 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
-#include <asm-generic/errno-base.h>
 
 typedef struct ArrayListPriv {
-    ArrayList pub; // must stay first: ArrayList * and ArrayListPriv * are interchangeable
+    ArrayList pub; // must stay first
     size_t capacity, size, elementSize;
     char *data;
 } ArrayListPriv;

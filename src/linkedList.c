@@ -14,7 +14,6 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
-#include <asm-generic/errno-base.h>
 
 typedef struct Node Node;
 
@@ -30,7 +29,7 @@ _Static_assert(sizeof(Node) % _Alignof(max_align_t) == 0,
                "Node must be padded so the payload after it is max-aligned");
 
 typedef struct LinkedListPriv {
-    LinkedList pub; // must stay first: LinkedList * and LinkedListPriv * are interchangeable
+    LinkedList pub; // must stay first
     Node *head, *tail;
     size_t size, elementSize;
 } LinkedListPriv;
