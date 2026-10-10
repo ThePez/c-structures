@@ -16,7 +16,7 @@
 #include <stdlib.h>
 
 typedef struct HeapPriv {
-    Heap pub; // must stay first: Heap * and HeapPriv * are interchangeable
+    Heap pub; // must stay first
     ArrayList *data;
     Compare compFunc;
     size_t elementSize;

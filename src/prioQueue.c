@@ -9,58 +9,63 @@
 #include "prioQueue.h"
 #include "heap.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <errno.h>
 
-struct PrioQueue {
+typedef struct PrioQueuePriv {
+    PrioQueue pub; // must stay first
     Heap *data;
-};
+} PrioQueuePriv;
 
-size_t prioQueue_size(const PrioQueue *queue)
+#define PRIVATE(q)       ((PrioQueuePriv *)(q))
+#define CONST_PRIVATE(q) ((const PrioQueuePriv *)(q))
+
+static size_t size(const PrioQueue *self)
 {
-    if (!queue) {
-        return 0;
-    }
-
-    return heap_size(queue->data);
+    assert(self != NULL);
+    const Heap *data = CONST_PRIVATE(self)->data;
+    return data->size(data);
 }
 
-int prioQueue_enqueue(PrioQueue *queue, const void *item)
+static int empty(const PrioQueue *self)
 {
-    if (!queue) {
-        return EINVAL;
-    }
-
-    return heap_add(queue->data, item);
+    assert(self != NULL);
+    const Heap *data = CONST_PRIVATE(self)->data;
+    return data->empty(data);
 }
 
-int prioQueue_dequeue(PrioQueue *queue, void *dest)
+static int enqueue(PrioQueue *self, const void *item)
 {
-    if (!queue) {
-        return EINVAL;
-    }
-
-    return heap_pop(queue->data, dest);
+    assert(self != NULL);
+    Heap *data = PRIVATE(self)->data;
+    return data->add(data, item);
 }
 
-int prioQueue_peek(const PrioQueue *queue, void *dest)
+static int dequeue(PrioQueue *self, void *dest)
 {
-    if (!queue) {
-        return EINVAL;
-    }
-
-    return heap_peek(queue->data, dest);
+    assert(self != NULL);
+    Heap *data = PRIVATE(self)->data;
+    return data->pop(data, dest);
 }
 
-void prioQueue_destroy(PrioQueue *queue)
+static int peek(const PrioQueue *self, void *dest)
 {
-    if (!queue) {
+    assert(self != NULL);
+    const Heap *data = CONST_PRIVATE(self)->data;
+    return data->peek(data, dest);
+}
+
+static void destroy(PrioQueue *self)
+{
+    if (!self) {
         return;
     }
 
-    heap_destroy(queue->data);
-    free(queue);
+    Heap *data = PRIVATE(self)->data;
+    data->destroy(data);
+    free(self);
 }
 
 PrioQueue *prioQueue_create(size_t memberSize, HeapType type, Compare cmp)
@@ -70,12 +75,22 @@ PrioQueue *prioQueue_create(size_t memberSize, HeapType type, Compare cmp)
         return NULL;
     }
 
-    PrioQueue *queue = malloc(sizeof(PrioQueue));
-    if (!queue) {
-        heap_destroy(data);
+    PrioQueuePriv *self = malloc(sizeof(PrioQueuePriv));
+    if (!self) {
+        data->destroy(data);
         return NULL;
     }
 
-    queue->data = data;
-    return queue;
+    self->data = data;
+
+    self->pub = (const PrioQueue){
+        .size = size,
+        .empty = empty,
+        .enqueue = enqueue,
+        .dequeue = dequeue,
+        .peek = peek,
+        .destroy = destroy,
+    };
+
+    return &self->pub;
 }
