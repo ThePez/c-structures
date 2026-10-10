@@ -15,12 +15,16 @@
 #include <errno.h>
 #include <stdlib.h>
 
-struct Heap {
+typedef struct HeapPriv {
+    Heap pub; // must stay first: Heap * and HeapPriv * are interchangeable
     ArrayList *data;
     Compare compFunc;
     size_t elementSize;
     HeapType type;
-};
+} HeapPriv;
+
+#define PRIVATE(h)       ((HeapPriv *)(h))
+#define CONST_PRIVATE(h) ((const HeapPriv *)(h))
 
 #define PARENT(idx)      (((idx) - 1) >> 1) // (idx - 1) / 2
 #define LEFT_CHILD(idx)  (((idx) << 1) + 1) // 2 * idx + 1
@@ -36,10 +40,11 @@ struct Heap {
  * @return Non-zero if a belongs strictly above b, 0 if b is above a or the two
  *         compare equal.
  */
-static int above(const Heap *heap, size_t a, size_t b)
+static int above(const HeapPriv *heap, size_t a, size_t b)
 {
     assert(heap != NULL);
-    int cmp = heap->compFunc(arrayList_get(heap->data, a), arrayList_get(heap->data, b));
+    const ArrayList *data = heap->data;
+    int cmp = heap->compFunc(data->get(data, a), data->get(data, b));
     return heap->type ? cmp > 0 : cmp < 0;
 }
 
@@ -55,10 +60,9 @@ static int above(const Heap *heap, size_t a, size_t b)
  * @param length  Number of elements currently considered part of the heap.
  * @return The index of the left or right child.
  */
-static size_t getSwapIdx(const Heap *heap, size_t idx, size_t leftIdx, size_t length)
+static size_t getSwapIdx(const HeapPriv *heap, size_t idx, size_t leftIdx, size_t length)
 {
     assert(heap != NULL);
-
     size_t rightIdx = RIGHT_CHILD(idx);
 
     // The right child wins ties with the left child
@@ -78,7 +82,7 @@ static size_t getSwapIdx(const Heap *heap, size_t idx, size_t leftIdx, size_t le
  * @param heap The heap, must not be NULL.
  * @param idx  Index of the element to move, must be a valid index.
  */
-static void upHeap(Heap *heap, size_t idx)
+static void upHeap(HeapPriv *heap, size_t idx)
 {
     assert(heap != NULL);
     if (idx == 0) {
@@ -87,7 +91,7 @@ static void upHeap(Heap *heap, size_t idx)
     }
 
     if (above(heap, idx, PARENT(idx))) {
-        arrayList_swap(heap->data, idx, PARENT(idx));
+        heap->data->swap(heap->data, idx, PARENT(idx));
         upHeap(heap, PARENT(idx));
     }
 }
@@ -103,7 +107,7 @@ static void upHeap(Heap *heap, size_t idx)
  * @param idx    Index of the element to move.
  * @param length Number of elements currently considered part of the heap.
  */
-static void downHeap(Heap *heap, size_t idx, size_t length)
+static void downHeap(HeapPriv *heap, size_t idx, size_t length)
 {
     assert(heap != NULL);
     size_t leftIdx = LEFT_CHILD(idx);
@@ -116,7 +120,7 @@ static void downHeap(Heap *heap, size_t idx, size_t length)
     size_t swapIdx = getSwapIdx(heap, idx, leftIdx, length);
 
     if (above(heap, swapIdx, idx)) {
-        arrayList_swap(heap->data, idx, swapIdx);
+        heap->data->swap(heap->data, idx, swapIdx);
         downHeap(heap, swapIdx, length);
     }
 }
@@ -129,73 +133,91 @@ static void downHeap(Heap *heap, size_t idx, size_t length)
  *
  * @param heap The heap, must not be NULL.
  */
-static void heap_bottom_up_construct(Heap *heap)
+static void heap_bottom_up_construct(HeapPriv *heap)
 {
     assert(heap != NULL);
-
-    size_t n = arrayList_size(heap->data);
+    const ArrayList *data = heap->data;
+    size_t n = data->size(data);
 
     for (size_t i = n / 2; i-- > 0;) {
         downHeap(heap, i, n);
     }
 }
 
-size_t heap_size(const Heap *heap)
+static size_t size(const Heap *self)
 {
-    if (!heap) {
-        return 0;
-    }
-
-    return arrayList_size(heap->data);
+    assert(self != NULL);
+    const ArrayList *data = CONST_PRIVATE(self)->data;
+    return data->size(data);
 }
 
-int heap_add(Heap *heap, const void *item)
+static int empty(const Heap *self)
 {
-    if (!heap || !item) {
+    assert(self != NULL);
+    const ArrayList *data = CONST_PRIVATE(self)->data;
+    return data->empty(data);
+}
+
+static int add(Heap *self, const void *item)
+{
+    assert(self != NULL);
+    if (!item) {
         return EINVAL;
     }
 
-    int error = arrayList_append(heap->data, item);
+    HeapPriv *heap = PRIVATE(self);
+    ArrayList *data = heap->data;
+    int error = data->append(data, item);
     if (error) {
         return error;
     }
 
-    upHeap(heap, arrayList_size(heap->data) - 1);
+    upHeap(heap, data->size(data) - 1);
     return 0;
 }
 
-int heap_peek(const Heap *heap, void *dest)
+static int peek(const Heap *self, void *dest)
 {
-    if (!heap) {
-        return EINVAL;
-    }
-
-    return arrayList_get_first_cpy(heap->data, dest);
+    assert(self != NULL);
+    const ArrayList *data = CONST_PRIVATE(self)->data;
+    return data->get_first_cpy(data, dest);
 }
 
-int heap_pop(Heap *heap, void *dest)
+static int pop(Heap *self, void *dest)
 {
-    if (!heap) {
-        return EINVAL;
-    }
-
-    size_t size = arrayList_size(heap->data);
-    if (!size) {
+    assert(self != NULL);
+    if (empty(self)) {
         return ENOENT;
     }
 
-    int error = arrayList_get_first_cpy(heap->data, dest);
+    HeapPriv *heap = PRIVATE(self);
+    ArrayList *data = heap->data;
+    int error = data->get_first_cpy(data, dest);
     if (error) {
         return error;
     }
 
+    size_t count = data->size(data);
+
     // Rest should just pass without failing...
-    error = arrayList_swap(heap->data, 0, size - 1);
+    error = data->swap(data, 0, count - 1);
     assert(error == 0);
-    error = arrayList_delete_last(heap->data);
+    error = data->delete_last(data);
     assert(error == 0);
-    downHeap(heap, 0, size - 1);
+    (void)error;
+    downHeap(heap, 0, count - 1);
     return 0;
+}
+
+static void destroy(Heap *self)
+{
+    if (!self) {
+        return;
+    }
+
+    ArrayList *data = PRIVATE(self)->data;
+    data->destroy(data);
+    free(self);
 }
 
 /**
@@ -210,22 +232,31 @@ int heap_pop(Heap *heap, void *dest)
  * @return The new heap, or NULL if an argument is invalid or memory could not
  *         be allocated.
  */
-static Heap *heap_alloc(size_t memSize, size_t capacity, HeapType type, Compare cmp)
+static HeapPriv *heap_alloc(size_t memSize, size_t capacity, HeapType type, Compare cmp)
 {
     if (memSize < 1 || !cmp || (type != HEAP_MIN && type != HEAP_MAX)) {
         return NULL;
     }
 
-    ArrayList *data = arrayList_create(memSize, capacity);
+    ArrayList *data = arrayList_create_cap(memSize, capacity);
     if (!data) {
         return NULL;
     }
 
-    Heap *heap = malloc(sizeof(Heap));
+    HeapPriv *heap = malloc(sizeof(HeapPriv));
     if (!heap) {
-        arrayList_destroy(data);
+        data->destroy(data);
         return NULL;
     }
+
+    heap->pub = (const Heap){
+        .size = size,
+        .empty = empty,
+        .add = add,
+        .peek = peek,
+        .pop = pop,
+        .destroy = destroy,
+    };
 
     heap->data = data;
     heap->compFunc = cmp;
@@ -241,36 +272,27 @@ Heap *heap_from_list(const ArrayList *list, size_t memSize, HeapType type, Compa
         return NULL;
     }
 
-    size_t size = arrayList_size(list);
-    // An ArrayList cannot be created with zero capacity
-    Heap *heap = heap_alloc(memSize, size ? size : 1, type, cmp);
+    size_t count = list->size(list);
+    HeapPriv *heap = heap_alloc(memSize, count ? count : 1, type, cmp);
     if (!heap) {
         return NULL;
     }
 
     // Copy the old list data into the new space
-    for (size_t i = 0; i < size; i++) {
-        if (arrayList_append(heap->data, arrayList_get(list, i)) != 0) {
-            heap_destroy(heap);
+    ArrayList *data = heap->data;
+    for (size_t i = 0; i < count; i++) {
+        if (data->append(data, list->get(list, i)) != 0) {
+            destroy(&heap->pub);
             return NULL;
         }
     }
 
     heap_bottom_up_construct(heap);
-    return heap;
+    return &heap->pub;
 }
 
 Heap *heap_create(size_t memSize, HeapType type, Compare cmp)
 {
-    return heap_alloc(memSize, 10, type, cmp);
-}
-
-void heap_destroy(Heap *heap)
-{
-    if (!heap) {
-        return;
-    }
-
-    arrayList_destroy(heap->data);
-    free(heap);
+    HeapPriv *heap = heap_alloc(memSize, 10, type, cmp);
+    return heap ? &heap->pub : NULL;
 }

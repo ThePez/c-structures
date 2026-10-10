@@ -2,6 +2,10 @@
  * @file heap.h
  * @brief Binary heap, configurable as a min heap or a max heap. (interface)
  *
+ * Heaps are created with heap_create() or heap_from_list() and used through
+ * the function pointers stored in the struct, e.g. h->add(h, &item). The
+ * first argument is always the heap itself.
+ *
  * @author Jack Cairns
  * @date 2026-10-06
  */
@@ -30,10 +34,82 @@ typedef enum {
 } HeapType;
 
 /**
+ * @brief Public face of a heap: its methods.
+ *
+ * The remaining fields are private to heap.c. Only heap_create() and
+ * heap_from_list() can make a valid heap, so never declare or copy a Heap by
+ * value.
+ */
+struct Heap {
+    /**
+     * @brief Gets the number of elements currently in the heap.
+     *
+     * @param self The heap to query.
+     * @return The element count.
+     */
+    size_t (*size)(const Heap *self);
+
+    /**
+     * @brief Checks whether the heap holds no elements.
+     *
+     * @param self The heap to query.
+     * @return 1 if the heap is empty, 0 if it has at least one element.
+     */
+    int (*empty)(const Heap *self);
+
+    /**
+     * @brief Adds a copy of an item to the heap.
+     *
+     * O(log n) amortised. On failure the heap is left unchanged.
+     *
+     * @param self The heap to add to.
+     * @param item Pointer to the item to copy in, must point to one element.
+     * @return 0 on success, EINVAL if item is NULL, or ENOMEM if the heap
+     *         could not grow.
+     */
+    int (*add)(Heap *self, const void *item);
+
+    /**
+     * @brief Copies the top element into a caller-supplied buffer without
+     *        removing it.
+     *
+     * @param self The heap to read from.
+     * @param dest Buffer to copy into, must hold at least one element.
+     * @return 0 on success, EINVAL if dest is NULL, or ENOENT if the heap
+     *         is empty.
+     */
+    int (*peek)(const Heap *self, void *dest);
+
+    /**
+     * @brief Removes the top element and copies it into a caller-supplied
+     *        buffer.
+     *
+     * O(log n). On failure the heap is left unchanged.
+     *
+     * @param self The heap to remove from.
+     * @param dest Buffer to copy into, must hold at least one element.
+     * @return 0 on success, EINVAL if dest is NULL, or ENOENT if the heap
+     *         is empty.
+     */
+    int (*pop)(Heap *self, void *dest);
+
+    /**
+     * @brief Frees a heap and its storage.
+     *
+     * Only the heap's own memory is freed. If the stored elements contain
+     * pointers to other allocations, the caller must free those first. The
+     * heap must not be used afterwards.
+     *
+     * @param self The heap to destroy.
+     */
+    void (*destroy)(Heap *self);
+};
+
+/**
  * @brief Creates an empty heap.
  *
  * Elements are stored by value: added items are copied in, byte for byte.
- * The heap must be released with heap_destroy().
+ * The heap must be released with its destroy() method.
  *
  * @param memSize Size in bytes of one element, e.g. sizeof(int). Must be at
  *                least 1.
@@ -44,11 +120,12 @@ typedef enum {
  */
 Heap *heap_create(size_t memSize, HeapType type, Compare cmp);
 
+
 /**
  * @brief Creates a heap holding a copy of every element of a list.
  *
  * The heap is built in O(n). The source list is not modified and remains
- * owned by the caller. The heap must be released with heap_destroy().
+ * owned by the caller. The heap must be released with its destroy() method.
  *
  * @param list    The list to copy elements from.
  * @param memSize Size in bytes of one element, must match the element size
@@ -59,59 +136,5 @@ Heap *heap_create(size_t memSize, HeapType type, Compare cmp);
  *         not a valid HeapType, or memory could not be allocated.
  */
 Heap *heap_from_list(const ArrayList *list, size_t memSize, HeapType type, Compare cmp);
-
-/**
- * @brief Frees a heap and its storage.
- *
- * Only the heap's own memory is freed. If the stored elements contain
- * pointers to other allocations, the caller must free those first. Passing
- * NULL is a no-op. The heap must not be used afterwards.
- *
- * @param heap The heap to destroy.
- */
-void heap_destroy(Heap *heap);
-
-/**
- * @brief Gets the number of elements currently in the heap.
- *
- * @param heap The heap to query.
- * @return The element count, or 0 if heap is NULL.
- */
-size_t heap_size(const Heap *heap);
-
-/**
- * @brief Adds a copy of an item to the heap.
- *
- * O(log n) amortised. On failure the heap is left unchanged.
- *
- * @param heap The heap to add to.
- * @param item Pointer to the item to copy in, must point to one element.
- * @return 0 on success, EINVAL if heap or item is NULL, or ENOMEM if the heap
- *         could not grow.
- */
-int heap_add(Heap *heap, const void *item);
-
-/**
- * @brief Copies the top element into a caller-supplied buffer without
- *        removing it.
- *
- * @param heap The heap to read from.
- * @param dest Buffer to copy into, must hold at least one element.
- * @return 0 on success, EINVAL if heap or dest is NULL, or ENOENT if the heap
- *         is empty.
- */
-int heap_peek(const Heap *heap, void *dest);
-
-/**
- * @brief Removes the top element and copies it into a caller-supplied buffer.
- *
- * O(log n). On failure the heap is left unchanged.
- *
- * @param heap The heap to remove from.
- * @param dest Buffer to copy into, must hold at least one element.
- * @return 0 on success, EINVAL if heap or dest is NULL, or ENOENT if the heap
- *         is empty.
- */
-int heap_pop(Heap *heap, void *dest);
 
 #endif /* HEAP_H_ */
