@@ -363,3 +363,9 @@ LinkedList *linkedList_create(size_t memSize)
     list->tail = NULL;
     return &list->pub;
 }
+
+LinkedList *linkedList_create_cap(size_t memSize, size_t length)
+{
+    (void)length; // A linked list has no capacity
+    return linkedList_create(memSize);
+}

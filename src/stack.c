@@ -77,7 +77,7 @@ static void destroy(Stack *self)
 Stack *stack_create(size_t memberSize)
 {
 
-    ArrayList *data = arrayList_create(memberSize, 10);
+    ArrayList *data = arrayList_create(memberSize);
     if (!data) {
         return NULL;
     }

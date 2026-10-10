@@ -214,8 +214,23 @@ struct ArrayList {
 /**
  * @brief Creates an empty list.
  *
+ * The list starts with a default capacity and grows automatically as items
+ * are added. Use arrayList_create_cap() to choose the starting capacity.
  * Elements are stored by value: inserted items are copied in, byte for byte.
  * The list must be released with its destroy() method.
+ *
+ * @param memSize Size in bytes of one element, e.g. sizeof(int). Must be at
+ *                least 1.
+ * @return The new list, or NULL if memSize is 0, the initial allocation size
+ *         overflows, or memory could not be allocated.
+ */
+ArrayList *arrayList_create(size_t memSize);
+
+/**
+ * @brief Creates an empty list with a chosen initial capacity.
+ *
+ * Same as arrayList_create(), but reserves room for length elements up
+ * front, which avoids regrowing when the final size is roughly known.
  *
  * @param memSize Size in bytes of one element, e.g. sizeof(int). Must be at
  *                least 1.
@@ -224,6 +239,6 @@ struct ArrayList {
  * @return The new list, or NULL if either argument is 0, the requested size
  *         overflows, or memory could not be allocated.
  */
-ArrayList *arrayList_create(size_t memSize, size_t length);
+ArrayList *arrayList_create_cap(size_t memSize, size_t length);
 
 #endif /* ARRAY_LIST_H_ */

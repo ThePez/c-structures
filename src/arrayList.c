@@ -21,6 +21,8 @@ typedef struct ArrayListPriv {
     char *data;
 } ArrayListPriv;
 
+#define DEFAULT_CAPACITY 10
+
 #define PRIVATE(l)       ((ArrayListPriv *)(l))
 #define CONST_PRIVATE(l) ((const ArrayListPriv *)(l))
 
@@ -267,7 +269,12 @@ static void destroy(ArrayList *self)
     free(list);
 }
 
-ArrayList *arrayList_create(size_t memSize, size_t length)
+ArrayList *arrayList_create(size_t memSize)
+{
+    return arrayList_create_cap(memSize, DEFAULT_CAPACITY);
+}
+
+ArrayList *arrayList_create_cap(size_t memSize, size_t length)
 {
     if (length < 1 || memSize < 1) {
         return NULL;

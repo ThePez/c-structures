@@ -212,4 +212,18 @@ struct LinkedList {
  */
 LinkedList *linkedList_create(size_t memSize);
 
+/**
+ * @brief Creates an empty list, accepting a capacity argument that is ignored.
+ *
+ * Nodes are allocated one at a time as elements are added, so there is no
+ * capacity to reserve. This behaves exactly like linkedList_create().
+ *
+ * @param memSize Size in bytes of one element, e.g. sizeof(int). Must be at
+ *                least 1.
+ * @param length  Ignored.
+ * @return The new list, or NULL if memSize is 0, the size is too large to
+ *         allocate a node for, or memory could not be allocated.
+ */
+LinkedList *linkedList_create_cap(size_t memSize, size_t length);
+
 #endif /* LINKED_LIST_H_ */
