@@ -8,11 +8,13 @@
 
 #include "linkedList.h"
 
+#include <assert.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <asm-generic/errno-base.h>
 
 typedef struct Node Node;
 
@@ -27,21 +29,35 @@ struct Node {
 _Static_assert(sizeof(Node) % _Alignof(max_align_t) == 0,
                "Node must be padded so the payload after it is max-aligned");
 
-struct LinkedList {
+typedef struct LinkedListPriv {
+    LinkedList pub; // must stay first: LinkedList * and LinkedListPriv * are interchangeable
     Node *head, *tail;
     size_t size, elementSize;
-};
+} LinkedListPriv;
 
-size_t linkedList_size(const LinkedList *list)
+#define PRIVATE(l)       ((LinkedListPriv *)(l))
+#define CONST_PRIVATE(l) ((const LinkedListPriv *)(l))
+
+static size_t size(const LinkedList *self)
 {
-    if (!list) {
-        return 0;
-    }
-
-    return list->size;
+    assert(self != NULL);
+    return CONST_PRIVATE(self)->size;
 }
 
-static Node *get_node(const LinkedList *list, size_t idx)
+static int empty(const LinkedList *self)
+{
+    assert(self != NULL);
+    return CONST_PRIVATE(self)->size > 0 ? 0 : 1;
+}
+
+/**
+ * @brief Finds the node at an index, walking from whichever end is closer.
+ *
+ * @param list The list to search.
+ * @param idx  Index of the node, must be less than the list size.
+ * @return The node at idx.
+ */
+static Node *get_node(const LinkedListPriv *list, size_t idx)
 {
     Node *current = NULL;
     if (idx > list->size / 2) {
@@ -61,84 +77,145 @@ static Node *get_node(const LinkedList *list, size_t idx)
     return current;
 }
 
-const void *linkedList_get(const LinkedList *list, size_t idx)
+static const void *get(const LinkedList *self, size_t idx)
 {
-    if (!list || idx >= list->size) {
+    assert(self != NULL);
+    const LinkedListPriv *list = CONST_PRIVATE(self);
+    if (idx >= list->size) {
         return NULL;
     }
 
     return get_node(list, idx)->data;
 }
 
-const void *linkedList_get_first(const LinkedList *list)
+static const void *get_first(const LinkedList *self)
 {
-    if (!list || !list->size) {
+    assert(self != NULL);
+    if (empty(self)) {
         return NULL;
     }
 
-    return list->head->data;
+    return CONST_PRIVATE(self)->head->data;
 }
 
-const void *linkedList_get_last(const LinkedList *list)
+static const void *get_last(const LinkedList *self)
 {
-    if (!list || !list->size) {
+    assert(self != NULL);
+    if (empty(self)) {
         return NULL;
     }
 
-    return list->tail->data;
+    return CONST_PRIVATE(self)->tail->data;
 }
 
-int linkedList_get_cpy(const LinkedList *list, size_t idx, void *dest)
+static int get_cpy(const LinkedList *self, size_t idx, void *dest)
 {
-    if (!list || !dest || idx >= list->size) {
-        return EINVAL;
-    }
-
-    Node *node = get_node(list, idx);
-    memcpy(dest, node->data, list->elementSize);
-    return 0;
-}
-
-int linkedList_get_first_cpy(const LinkedList *list, void *dest)
-{
-    if (!list || !dest) {
-        return EINVAL;
-    }
-
-    if (!list->size) {
+    assert(self != NULL);
+    if (empty(self)) {
         return ENOENT;
     }
 
+    const LinkedListPriv *list = CONST_PRIVATE(self);
+    if (!dest || idx >= list->size) {
+        return EINVAL;
+    }
+
+    memcpy(dest, get_node(list, idx)->data, list->elementSize);
+    return 0;
+}
+
+static int get_first_cpy(const LinkedList *self, void *dest)
+{
+    assert(self != NULL);
+    if (!dest) {
+        return EINVAL;
+    }
+
+    if (empty(self)) {
+        return ENOENT;
+    }
+
+    const LinkedListPriv *list = CONST_PRIVATE(self);
     memcpy(dest, list->head->data, list->elementSize);
     return 0;
 }
 
-int linkedList_get_last_cpy(const LinkedList *list, void *dest)
+static int get_last_cpy(const LinkedList *self, void *dest)
 {
-    if (!list || !dest) {
+    assert(self != NULL);
+    if (!dest) {
         return EINVAL;
     }
 
-    if (!list->size) {
+    if (empty(self)) {
         return ENOENT;
     }
 
+    const LinkedListPriv *list = CONST_PRIVATE(self);
     memcpy(dest, list->tail->data, list->elementSize);
     return 0;
 }
 
-int linkedList_delete(LinkedList *list, size_t idx)
+static int delete_first(LinkedList *self)
 {
-    if (!list || idx >= list->size) {
+    assert(self != NULL);
+    if (empty(self)) {
+        return ENOENT;
+    }
+
+    LinkedListPriv *list = PRIVATE(self);
+    Node *head = list->head;
+    list->head = head->next;
+    if (list->head) {
+        list->head->prev = NULL;
+    }
+
+    free(head);
+    list->size--;
+    if (!list->size) {
+        list->tail = NULL;
+    }
+
+    return 0;
+}
+
+static int delete_last(LinkedList *self)
+{
+    assert(self != NULL);
+    if (empty(self)) {
+        return ENOENT;
+    }
+
+    LinkedListPriv *list = PRIVATE(self);
+    Node *tail = list->tail;
+    list->tail = tail->prev;
+    if (list->tail) {
+        list->tail->next = NULL;
+    }
+
+    free(tail);
+    list->size--;
+    if (!list->size) {
+        list->head = NULL;
+    }
+
+    return 0;
+}
+
+static int delete(LinkedList *self, size_t idx)
+{
+    assert(self != NULL);
+    LinkedListPriv *list = PRIVATE(self);
+    if (idx >= list->size) {
         return EINVAL;
     }
 
     if (idx == 0) {
-        return linkedList_delete_first(list);
+        return delete_first(self);
     }
 
     if (idx == list->size - 1) {
-        return linkedList_delete_last(list);
+        return delete_last(self);
     }
 
     Node *node = get_node(list, idx);
@@ -155,61 +232,11 @@ int linkedList_delete(LinkedList *list, size_t idx)
     return 0;
 }
 
-int linkedList_delete_first(LinkedList *list)
+static int insert(LinkedList *self, size_t idx, const void *item)
 {
-    if (!list) {
-        return EINVAL;
-    }
-
-    if (!list->size) {
-        return ENOENT;
-    }
-
-    Node *next = list->head->next;
-    Node *head = list->head;
-    list->head = next;
-    if (list->head) {
-        list->head->prev = NULL;
-    }
-
-    free(head);
-    list->size--;
-    if (!list->size) {
-        list->tail = NULL;
-    }
-
-    return 0;
-}
-
-int linkedList_delete_last(LinkedList *list)
-{
-    if (!list) {
-        return EINVAL;
-    }
-
-    if (!list->size) {
-        return ENOENT;
-    }
-
-    Node *prev = list->tail->prev;
-    Node *tail = list->tail;
-    list->tail = prev;
-    if (list->tail) {
-        list->tail->next = NULL;
-    }
-
-    free(tail);
-    list->size--;
-    if (!list->size) {
-        list->head = NULL;
-    }
-
-    return 0;
-}
-
-int linkedList_insert(LinkedList *list, size_t idx, const void *item)
-{
-    if (!list || !item || idx > list->size) {
+    assert(self != NULL);
+    LinkedListPriv *list = PRIVATE(self);
+    if (!item || idx > list->size) {
         return EINVAL;
     }
 
@@ -222,7 +249,7 @@ int linkedList_insert(LinkedList *list, size_t idx, const void *item)
     node->data = (char *)(node + 1);
     memcpy(node->data, item, list->elementSize);
 
-    if (list->size == 0) {
+    if (empty(self)) {
         // Empty list
         node->next = NULL;
         node->prev = NULL;
@@ -262,47 +289,31 @@ int linkedList_insert(LinkedList *list, size_t idx, const void *item)
     return 0;
 }
 
-int linkedList_append(LinkedList *list, const void *item)
+static int append(LinkedList *self, const void *item)
 {
-    if (!list) {
-        return EINVAL;
-    }
-
-    return linkedList_insert(list, list->size, item);
+    assert(self != NULL);
+    return insert(self, size(self), item);
 }
 
-int linkedList_set(LinkedList *list, size_t idx, const void *item)
+static int set(LinkedList *self, size_t idx, const void *item)
 {
-    if (!list || !item || idx >= list->size) {
+    assert(self != NULL);
+    if (empty(self)) {
+        return ENOENT;
+    }
+
+    LinkedListPriv *list = PRIVATE(self);
+    if (!item || idx >= list->size) {
         return EINVAL;
     }
 
-    Node *node = get_node(list, idx);
-    memcpy(node->data, item, list->elementSize);
+    memcpy(get_node(list, idx)->data, item, list->elementSize);
     return 0;
 }
 
-LinkedList *linkedList_create(size_t memSize)
+static void destroy(LinkedList *self)
 {
-    // Reject zero-size elements and sizes that would overflow node allocation
-    if (memSize < 1 || memSize > SIZE_MAX - sizeof(Node)) {
-        return NULL;
-    }
-
-    LinkedList *list = malloc(sizeof(LinkedList));
-    if (list == NULL) {
-        return NULL;
-    }
-
-    list->elementSize = memSize;
-    list->size = 0;
-    list->head = NULL;
-    list->tail = NULL;
-    return list;
-}
-
-void linkedList_destroy(LinkedList *list)
-{
+    LinkedListPriv *list = PRIVATE(self);
     if (!list) {
         return;
     }
@@ -315,4 +326,41 @@ void linkedList_destroy(LinkedList *list)
     }
 
     free(list);
+}
+
+LinkedList *linkedList_create(size_t memSize)
+{
+    // Reject zero-size elements and sizes that would overflow node allocation
+    if (memSize < 1 || memSize > SIZE_MAX - sizeof(Node)) {
+        return NULL;
+    }
+
+    LinkedListPriv *list = malloc(sizeof(LinkedListPriv));
+    if (list == NULL) {
+        return NULL;
+    }
+
+    list->pub = (const LinkedList){
+        .size = size,
+        .empty = empty,
+        .get = get,
+        .get_first = get_first,
+        .get_last = get_last,
+        .get_cpy = get_cpy,
+        .get_first_cpy = get_first_cpy,
+        .get_last_cpy = get_last_cpy,
+        .delete = delete,
+        .delete_first = delete_first,
+        .delete_last = delete_last,
+        .insert = insert,
+        .append = append,
+        .set = set,
+        .destroy = destroy,
+    };
+
+    list->elementSize = memSize;
+    list->size = 0;
+    list->head = NULL;
+    list->tail = NULL;
+    return &list->pub;
 }
