@@ -14,6 +14,7 @@
 #define LINKED_LIST_H_
 
 #include <stddef.h>
+#include <errno.h>
 
 typedef struct LinkedList LinkedList;
 
@@ -22,8 +23,22 @@ typedef struct LinkedList LinkedList;
  *
  * The remaining fields are private to linkedList.c. Only linkedList_create()
  * can make a valid list, so never declare or copy a LinkedList by value.
+ *
+ * Methods that modify the list return the list itself (or NULL if given
+ * NULL) so calls can be chained, and report failure through the err member.
+ * If err is already set, they do nothing. Getters return their result
+ * directly and are unaffected by err.
  */
 struct LinkedList {
+    /**
+     * @brief Sticky error code from the most recent failed operation.
+     *
+     * Holds 0 while the list is healthy, otherwise an errno value (EINVAL,
+     * ENOENT or ENOMEM). Reset it to 0 to keep using the list after
+     * handling the error.
+     */
+    int err;
+
     /**
      * @brief Gets the number of elements currently stored in the list.
      *
@@ -44,7 +59,7 @@ struct LinkedList {
      * @brief Gets a read-only pointer to the element at an index.
      *
      * The pointer refers to the node's own storage and stays valid until that
-     * element is deleted or the list is destroyed. Inserting other elements
+     * element is erased or the list is destroyed. Inserting other elements
      * does not move it. Use get_cpy() for a copy that stays valid.
      *
      * Nodes are walked from whichever end is closer, so this is O(n).
@@ -117,9 +132,10 @@ struct LinkedList {
      * @param self The list to remove from.
      * @param idx  Index of the element to remove, must be less than the
      *             list size.
-     * @return 0 on success, or EINVAL if idx is out of range.
+     * @return self, so calls can be chained. Sets err to ENOENT if the list is
+     *         empty, or EINVAL if idx is out of range.
      */
-    int (*delete)(LinkedList *self, size_t idx);
+    LinkedList *(*erase)(LinkedList *self, size_t idx);
 
     /**
      * @brief Removes the first element.
@@ -128,9 +144,10 @@ struct LinkedList {
      * become invalid.
      *
      * @param self The list to remove from.
-     * @return 0 on success, or ENOENT if the list is empty.
+     * @return self, so calls can be chained. Sets err to ENOENT if the list is
+     *         empty.
      */
-    int (*delete_first)(LinkedList *self);
+    LinkedList *(*erase_first)(LinkedList *self);
 
     /**
      * @brief Removes the last element.
@@ -139,9 +156,10 @@ struct LinkedList {
      * become invalid.
      *
      * @param self The list to remove from.
-     * @return 0 on success, or ENOENT if the list is empty.
+     * @return self, so calls can be chained. Sets err to ENOENT if the list is
+     *         empty.
      */
-    int (*delete_last)(LinkedList *self);
+    LinkedList *(*erase_last)(LinkedList *self);
 
     /**
      * @brief Inserts a copy of an item at an index.
@@ -155,10 +173,11 @@ struct LinkedList {
      * @param idx  Index to insert at, from 0 up to and including the list
      *             size (inserting at the size appends).
      * @param item Pointer to the item to copy in, must point to one element.
-     * @return 0 on success, EINVAL if item is NULL or idx is greater than
-     *         the list size, or ENOMEM if the node could not be allocated.
+     * @return self, so calls can be chained. Sets err to EINVAL if item is
+     *         NULL or idx is greater than the list size, or ENOMEM if the
+     *         node could not be allocated.
      */
-    int (*insert)(LinkedList *self, size_t idx, const void *item);
+    LinkedList *(*insert)(LinkedList *self, size_t idx, const void *item);
 
     /**
      * @brief Adds a copy of an item to the end of the list.
@@ -167,10 +186,10 @@ struct LinkedList {
      *
      * @param self The list to append to.
      * @param item Pointer to the item to copy in, must point to one element.
-     * @return 0 on success, EINVAL if item is NULL, or ENOMEM if the node
-     *         could not be allocated.
+     * @return self, so calls can be chained. Sets err to EINVAL if item is
+     *         NULL, or ENOMEM if the node could not be allocated.
      */
-    int (*append)(LinkedList *self, const void *item);
+    LinkedList *(*append)(LinkedList *self, const void *item);
 
     /**
      * @brief Overwrites the element at an index with a copy of an item.
@@ -182,10 +201,10 @@ struct LinkedList {
      * @param idx  Index of the element to replace, must be less than the
      *             list size.
      * @param item Pointer to the item to copy in, must point to one element.
-     * @return 0 on success, or EINVAL if item is NULL or idx is out of
-     *         range.
+     * @return self, so calls can be chained. Sets err to ENOENT if the list is
+     *         empty, or EINVAL if item is NULL or idx is out of range.
      */
-    int (*set)(LinkedList *self, size_t idx, const void *item);
+    LinkedList *(*set)(LinkedList *self, size_t idx, const void *item);
 
     /**
      * @brief Frees a list and all of its nodes.

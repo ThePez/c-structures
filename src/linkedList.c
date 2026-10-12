@@ -155,11 +155,15 @@ static int get_last_cpy(const LinkedList *self, void *dest)
     return 0;
 }
 
-static int delete_first(LinkedList *self)
+static LinkedList *erase_first(LinkedList *self)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (empty(self)) {
-        return ENOENT;
+        self->err = ENOENT;
+        return self;
     }
 
     LinkedListPriv *list = PRIVATE(self);
@@ -175,14 +179,18 @@ static int delete_first(LinkedList *self)
         list->tail = NULL;
     }
 
-    return 0;
+    return self;
 }
 
-static int delete_last(LinkedList *self)
+static LinkedList *erase_last(LinkedList *self)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (empty(self)) {
-        return ENOENT;
+        self->err = ENOENT;
+        return self;
     }
 
     LinkedListPriv *list = PRIVATE(self);
@@ -198,23 +206,32 @@ static int delete_last(LinkedList *self)
         list->head = NULL;
     }
 
-    return 0;
+    return self;
 }
 
-static int delete(LinkedList *self, size_t idx)
+static LinkedList *erase(LinkedList *self, size_t idx)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
+    if (empty(self)) {
+        self->err = ENOENT;
+        return self;
+    }
+
     LinkedListPriv *list = PRIVATE(self);
     if (idx >= list->size) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     if (idx == 0) {
-        return delete_first(self);
+        return erase_first(self);
     }
 
     if (idx == list->size - 1) {
-        return delete_last(self);
+        return erase_last(self);
     }
 
     Node *node = get_node(list, idx);
@@ -228,20 +245,25 @@ static int delete(LinkedList *self, size_t idx)
 
     // Now cleanup
     free(node);
-    return 0;
+    return self;
 }
 
-static int insert(LinkedList *self, size_t idx, const void *item)
+static LinkedList *insert(LinkedList *self, size_t idx, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     LinkedListPriv *list = PRIVATE(self);
     if (!item || idx > list->size) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     Node *node = malloc(sizeof(Node) + list->elementSize);
     if (!node) {
-        return ENOMEM;
+        self->err = ENOMEM;
+        return self;
     }
 
     // Walk along the block to store the actual data
@@ -255,7 +277,7 @@ static int insert(LinkedList *self, size_t idx, const void *item)
         list->head = node;
         list->tail = node;
         list->size++;
-        return 0;
+        return self;
     }
 
     if (idx == 0) {
@@ -285,29 +307,37 @@ static int insert(LinkedList *self, size_t idx, const void *item)
     }
 
     list->size++;
-    return 0;
+    return self;
 }
 
-static int append(LinkedList *self, const void *item)
+static LinkedList *append(LinkedList *self, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     return insert(self, size(self), item);
 }
 
-static int set(LinkedList *self, size_t idx, const void *item)
+static LinkedList *set(LinkedList *self, size_t idx, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (empty(self)) {
-        return ENOENT;
+        self->err = ENOENT;
+        return self;
     }
 
     LinkedListPriv *list = PRIVATE(self);
     if (!item || idx >= list->size) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     memcpy(get_node(list, idx)->data, item, list->elementSize);
-    return 0;
+    return self;
 }
 
 static void destroy(LinkedList *self)
@@ -340,6 +370,7 @@ LinkedList *linkedList_create(size_t memSize)
     }
 
     list->pub = (const LinkedList){
+        .err = 0,
         .size = size,
         .empty = empty,
         .get = get,
@@ -348,9 +379,9 @@ LinkedList *linkedList_create(size_t memSize)
         .get_cpy = get_cpy,
         .get_first_cpy = get_first_cpy,
         .get_last_cpy = get_last_cpy,
-        .delete = delete,
-        .delete_first = delete_first,
-        .delete_last = delete_last,
+        .erase = erase,
+        .erase_first = erase_first,
+        .erase_last = erase_last,
         .insert = insert,
         .append = append,
         .set = set,
