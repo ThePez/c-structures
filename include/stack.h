@@ -14,6 +14,7 @@
 #define STACK_H_
 
 #include <stddef.h>
+#include <errno.h>
 
 typedef struct Stack Stack;
 
@@ -22,8 +23,22 @@ typedef struct Stack Stack;
  *
  * The remaining fields are private to stack.c. Only stack_create() can make
  * a valid stack, so never declare or copy a Stack by value.
+ *
+ * Methods that modify the stack return the stack itself (or NULL if given
+ * NULL) so calls can be chained, and report failure through the err member.
+ * If err is already set, they do nothing. Getters return their result
+ * directly and are unaffected by err.
  */
 struct Stack {
+    /**
+     * @brief Sticky error code from the most recent failed operation.
+     *
+     * Holds 0 while the stack is healthy, otherwise an errno value
+     * (EINVAL, ENOENT or ENOMEM). Reset it to 0 to keep using the
+     * stack after handling the error.
+     */
+    int err;
+
     /**
      * @brief Gets the number of elements currently on the stack.
      *
@@ -49,10 +64,10 @@ struct Stack {
      * @param self The stack to push onto.
      * @param item Pointer to the item to copy in, must point to one element
      *             (the element size given to stack_create()).
-     * @return 0 on success, EINVAL if item is NULL, or ENOMEM if the stack
-     *         could not grow.
+     * @return self, so calls can be chained. Sets err to EINVAL if item is
+     *         NULL, or ENOMEM if the stack could not grow.
      */
-    int (*push)(Stack *self, const void *item);
+    Stack *(*push)(Stack *self, const void *item);
 
     /**
      * @brief Removes the top element, copying it into a caller-supplied
@@ -63,10 +78,11 @@ struct Stack {
      * @param self The stack to pop from.
      * @param dest Buffer to copy the element into, must hold at least one
      *             element.
-     * @return 0 on success, EINVAL if dest is NULL, or ENOENT if the stack
-     *         is empty.
+     * @return self, so calls can be chained. Sets err to EINVAL if dest is
+     *         NULL, or ENOENT if the stack is empty. dest is only written on
+     *         success.
      */
-    int (*pop)(Stack *self, void *dest);
+    Stack *(*pop)(Stack *self, void *dest);
 
     /**
      * @brief Copies the top element into a caller-supplied buffer without

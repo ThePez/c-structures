@@ -22,6 +22,18 @@ typedef struct StackPriv {
 #define PRIVATE(s)       ((StackPriv *)(s))
 #define CONST_PRIVATE(s) ((const StackPriv *)(s))
 
+/**
+ * @brief Moves an error from the inner ArrayList onto the wrapper.
+ *
+ * Clears the inner error so the next operation starts clean.
+ */
+static Stack *sync_err(Stack *self, ArrayList *data)
+{
+    self->err = data->err;
+    data->err = 0;
+    return self;
+}
+
 static size_t size(const Stack *self)
 {
     assert(self != NULL);
@@ -36,24 +48,33 @@ static int empty(const Stack *self)
     return data->empty(data);
 }
 
-static int push(Stack *self, const void *item)
+static Stack *push(Stack *self, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     ArrayList *data = PRIVATE(self)->data;
-    return data->append(data, item);
+    data->append(data, item);
+    return sync_err(self, data);
 }
 
-static int pop(Stack *self, void *dest)
+static Stack *pop(Stack *self, void *dest)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     ArrayList *data = PRIVATE(self)->data;
 
     int error = data->get_last_cpy(data, dest);
     if (error) {
-        return error;
+        self->err = error;
+        return self;
     }
 
-    return data->delete_last(data);
+    data->erase_last(data);
+    return sync_err(self, data);
 }
 
 static int peek(const Stack *self, void *dest)

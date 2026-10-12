@@ -14,6 +14,7 @@
 #define QUEUE_H_
 
 #include <stddef.h>
+#include <errno.h>
 
 typedef struct Queue Queue;
 
@@ -22,8 +23,22 @@ typedef struct Queue Queue;
  *
  * The remaining fields are private to queue.c. Only queue_create() can make
  * a valid queue, so never declare or copy a Queue by value.
+ *
+ * Methods that modify the queue return the queue itself (or NULL if given
+ * NULL) so calls can be chained, and report failure through the err member.
+ * If err is already set, they do nothing. Getters return their result
+ * directly and are unaffected by err.
  */
 struct Queue {
+    /**
+     * @brief Sticky error code from the most recent failed operation.
+     *
+     * Holds 0 while the queue is healthy, otherwise an errno value
+     * (EINVAL, ENOENT or ENOMEM). Reset it to 0 to keep using the queue
+     * after handling the error.
+     */
+    int err;
+
     /**
      * @brief Gets the number of elements currently in the queue.
      *
@@ -48,10 +63,10 @@ struct Queue {
      * @param self The queue to add to.
      * @param item Pointer to the item to copy in, must point to one element
      *             (the element size given to queue_create()).
-     * @return 0 on success, EINVAL if item is NULL, or ENOMEM if the element
-     *         could not be allocated.
+     * @return self, so calls can be chained. Sets err to EINVAL if item is
+     *         NULL, or ENOMEM if the element could not be allocated.
      */
-    int (*enqueue)(Queue *self, const void *item);
+    Queue *(*enqueue)(Queue *self, const void *item);
 
     /**
      * @brief Removes the front element, copying it into a caller-supplied
@@ -62,10 +77,11 @@ struct Queue {
      * @param self The queue to remove from.
      * @param dest Buffer to copy the element into, must hold at least one
      *             element.
-     * @return 0 on success, EINVAL if dest is NULL, or ENOENT if the queue
-     *         is empty.
+     * @return self, so calls can be chained. Sets err to EINVAL if dest is
+     *         NULL, or ENOENT if the queue is empty. dest is only written on
+     *         success.
      */
-    int (*dequeue)(Queue *self, void *dest);
+    Queue *(*dequeue)(Queue *self, void *dest);
 
     /**
      * @brief Copies the front element into a caller-supplied buffer without

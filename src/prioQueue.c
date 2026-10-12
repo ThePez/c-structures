@@ -22,6 +22,18 @@ typedef struct PrioQueuePriv {
 #define PRIVATE(q)       ((PrioQueuePriv *)(q))
 #define CONST_PRIVATE(q) ((const PrioQueuePriv *)(q))
 
+/**
+ * @brief Moves an error from the inner Heap onto the wrapper.
+ *
+ * Clears the inner error so the next operation starts clean.
+ */
+static PrioQueue *sync_err(PrioQueue *self, Heap *data)
+{
+    self->err = data->err;
+    data->err = 0;
+    return self;
+}
+
 static size_t size(const PrioQueue *self)
 {
     assert(self != NULL);
@@ -36,18 +48,26 @@ static int empty(const PrioQueue *self)
     return data->empty(data);
 }
 
-static int enqueue(PrioQueue *self, const void *item)
+static PrioQueue *enqueue(PrioQueue *self, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     Heap *data = PRIVATE(self)->data;
-    return data->add(data, item);
+    data->add(data, item);
+    return sync_err(self, data);
 }
 
-static int dequeue(PrioQueue *self, void *dest)
+static PrioQueue *dequeue(PrioQueue *self, void *dest)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     Heap *data = PRIVATE(self)->data;
-    return data->pop(data, dest);
+    data->pop(data, dest);
+    return sync_err(self, data);
 }
 
 static int peek(const PrioQueue *self, void *dest)

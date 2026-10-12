@@ -15,6 +15,7 @@
 
 #include "heap.h"
 #include <stddef.h>
+#include <errno.h>
 
 typedef struct PrioQueue PrioQueue;
 
@@ -23,8 +24,22 @@ typedef struct PrioQueue PrioQueue;
  *
  * The remaining fields are private to prioQueue.c. Only prioQueue_create()
  * can make a valid queue, so never declare or copy a PrioQueue by value.
+ *
+ * Methods that modify the queue return the queue itself (or NULL if given
+ * NULL) so calls can be chained, and report failure through the err member.
+ * If err is already set, they do nothing. Getters return their result
+ * directly and are unaffected by err.
  */
 struct PrioQueue {
+    /**
+     * @brief Sticky error code from the most recent failed operation.
+     *
+     * Holds 0 while the queue is healthy, otherwise an errno value
+     * (EINVAL, ENOENT or ENOMEM). Reset it to 0 to keep using the
+     * queue after handling the error.
+     */
+    int err;
+
     /**
      * @brief Gets the number of elements currently in the queue.
      *
@@ -49,10 +64,10 @@ struct PrioQueue {
      * @param self The queue to add to.
      * @param item Pointer to the item to copy in, must point to one element
      *             (the element size given to prioQueue_create()).
-     * @return 0 on success, EINVAL if item is NULL, or ENOMEM if the queue
-     *         could not grow.
+     * @return self, so calls can be chained. Sets err to EINVAL if item is
+     *         NULL, or ENOMEM if the queue could not grow.
      */
-    int (*enqueue)(PrioQueue *self, const void *item);
+    PrioQueue *(*enqueue)(PrioQueue *self, const void *item);
 
     /**
      * @brief Removes the highest-priority element, copying it into a
@@ -63,10 +78,11 @@ struct PrioQueue {
      * @param self The queue to remove from.
      * @param dest Buffer to copy the element into, must hold at least one
      *             element.
-     * @return 0 on success, EINVAL if dest is NULL, or ENOENT if the queue
-     *         is empty.
+     * @return self, so calls can be chained. Sets err to EINVAL if dest is
+     *         NULL, or ENOENT if the queue is empty. dest is only written on
+     *         success.
      */
-    int (*dequeue)(PrioQueue *self, void *dest);
+    PrioQueue *(*dequeue)(PrioQueue *self, void *dest);
 
     /**
      * @brief Copies the highest-priority element into a caller-supplied

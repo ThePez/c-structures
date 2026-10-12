@@ -22,6 +22,18 @@ typedef struct QueuePriv {
 #define PRIVATE(q)       ((QueuePriv *)(q))
 #define CONST_PRIVATE(q) ((const QueuePriv *)(q))
 
+/**
+ * @brief Moves an error from the inner LinkedList onto the wrapper.
+ *
+ * Clears the inner error so the next operation starts clean.
+ */
+static Queue *sync_err(Queue *self, LinkedList *data)
+{
+    self->err = data->err;
+    data->err = 0;
+    return self;
+}
+
 static size_t size(const Queue *self)
 {
     assert(self != NULL);
@@ -36,24 +48,33 @@ static int empty(const Queue *self)
     return data->empty(data);
 }
 
-static int enqueue(Queue *self, const void *item)
+static Queue *enqueue(Queue *self, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     LinkedList *data = PRIVATE(self)->data;
-    return data->append(data, item);
+    data->append(data, item);
+    return sync_err(self, data);
 }
 
-static int dequeue(Queue *self, void *dest)
+static Queue *dequeue(Queue *self, void *dest)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     LinkedList *data = PRIVATE(self)->data;
 
     int error = data->get_first_cpy(data, dest);
     if (error) {
-        return error;
+        self->err = error;
+        return self;
     }
 
-    return data->delete_first(data);
+    data->erase_first(data);
+    return sync_err(self, data);
 }
 
 static int peek(const Queue *self, void *dest)
