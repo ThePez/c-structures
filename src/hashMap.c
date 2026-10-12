@@ -302,11 +302,15 @@ static int get_cpy(const HashMap *self, const void *key, void *dest)
     return ENOENT;
 }
 
-static int delete(HashMap *self, const void *key)
+static HashMap *erase(HashMap *self, const void *key)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (!key) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     HashMapPriv *map = PRIVATE(self);
@@ -317,35 +321,46 @@ static int delete(HashMap *self, const void *key)
         map->key_release(probe.match);
         map->count--;
         memset(probe.match->value, 0, map->valSize);
-        return 0;
+        return self;
     }
 
     // Key not found in table
-    return ENOENT;
+    self->err = ENOENT;
+    return self;
 }
 
-static int add(HashMap *self, const void *key, const void *item)
+static HashMap *add(HashMap *self, const void *key, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (!key || !item) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     HashMapPriv *map = PRIVATE(self);
     Probe probe = find(map, key);
 
     if (probe.match) {
-        return EEXIST;
+        self->err = EEXIST;
+        return self;
     }
 
-    return insert(map, &probe, key, item);
+    self->err = insert(map, &probe, key, item);
+    return self;
 }
 
-static int set(HashMap *self, const void *key, const void *item, void *old)
+static HashMap *set(HashMap *self, const void *key, const void *item, void *old)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (!key || !item) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     HashMapPriv *map = PRIVATE(self);
@@ -358,10 +373,11 @@ static int set(HashMap *self, const void *key, const void *item, void *old)
         }
 
         memcpy(probe.match->value, item, map->valSize);
-        return 0;
+        return self;
     }
 
-    return insert(map, &probe, key, item);
+    self->err = insert(map, &probe, key, item);
+    return self;
 }
 
 static void destroy(HashMap *self)
@@ -443,7 +459,7 @@ HashMap *hashMap_create(size_t valSize, KeyType keyType)
                                    .empty = empty,
                                    .get = get,
                                    .get_cpy = get_cpy,
-                                   .delete = delete,
+                                   .erase = erase,
                                    .set = set,
                                    .destroy = destroy,
                                    .add = add,

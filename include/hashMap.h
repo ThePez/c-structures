@@ -23,13 +23,14 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <errno.h>
 
 typedef struct HashMap HashMap;
 
 /** @brief The kind of key a map uses. */
 typedef enum {
     KEY_NUMBER, /**< Keys are numbers, passed with HASHMAP_NUM_KEY. */
-    KEY_STRING, /**< Keys are NUL-terminated strings. */
+    KEY_STRING, /**< Keys are NULL-terminated strings. */
 } KeyType;
 
 /**
@@ -37,8 +38,22 @@ typedef enum {
  *
  * The remaining fields are private to hashMap.c. Only hashMap_create() can
  * make a valid map, so never declare or copy a HashMap by value.
+ *
+ * Methods that modify the map return the map itself (or NULL if given
+ * NULL) so calls can be chained, and report failure through the err member.
+ * If err is already set, they do nothing. Getters return their result
+ * directly and are unaffected by err.
  */
 struct HashMap {
+    /**
+     * @brief Sticky error code from the most recent failed operation.
+     *
+     * Holds 0 while the map is healthy, otherwise an errno value
+     * (EINVAL, ENOENT, EEXIST or ENOMEM). Reset it to 0 to keep using
+     * the map after handling the error.
+     */
+    int err;
+
     /**
      * @brief Gets the number of key-value pairs currently in the map.
      *
@@ -100,10 +115,10 @@ struct HashMap {
      *
      * @param self The map to remove from.
      * @param key  The key to remove.
-     * @return 0 on success, EINVAL if key is NULL, or ENOENT if the key is
-     *         not in the map.
+     * @return self, so calls can be chained. Sets err to EINVAL if key is
+     *         NULL, or ENOENT if the key is not in the map.
      */
-    int (*delete)(HashMap *self, const void *key);
+    HashMap *(*erase)(HashMap *self, const void *key);
 
     /**
      * @brief Inserts a new key-value pair, refusing to replace an existing one.
@@ -114,11 +129,11 @@ struct HashMap {
      * @param self The map to add to.
      * @param key  The key to insert.
      * @param item Pointer to the value to copy in, must point to one value.
-     * @return 0 on success, EINVAL if key or item is NULL, EEXIST if the key
-     *         is already in the map, or ENOMEM if memory could not be
-     *         allocated.
+     * @return self, so calls can be chained. Sets err to EINVAL if key or item
+     *         is NULL, EEXIST if the key is already in the map, or ENOMEM if
+     *         memory could not be allocated.
      */
-    int (*add)(HashMap *self, const void *key, const void *item);
+    HashMap *(*add)(HashMap *self, const void *key, const void *item);
 
     /**
      * @brief Inserts a key-value pair, replacing the value if the key exists.
@@ -133,11 +148,11 @@ struct HashMap {
      *             was already present, must hold at least one value. May be
      *             NULL if the previous value is not needed. Left unchanged if
      *             the key was not present.
-     * @return 0 on success (whether the key was inserted or replaced), EINVAL
-     *         if key or item is NULL, or ENOMEM if memory could not be
-     *         allocated.
+     * @return self, so calls can be chained. Sets err to EINVAL if key or item
+     *         is NULL, or ENOMEM if memory could not be allocated. Success
+     *         covers both inserting a new key and replacing an existing one.
      */
-    int (*set)(HashMap *self, const void *key, const void *item, void *old);
+    HashMap *(*set)(HashMap *self, const void *key, const void *item, void *old);
 
     /**
      * @brief Frees a map, its keys and its storage.
