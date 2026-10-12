@@ -144,6 +144,18 @@ static void heap_bottom_up_construct(HeapPriv *heap)
     }
 }
 
+/**
+ * @brief Moves an error from the inner ArrayList onto the wrapper.
+ *
+ * Clears the inner error so the next operation starts clean.
+ */
+static Heap *sync_err(Heap *self, ArrayList *data)
+{
+    self->err = data->err;
+    data->err = 0;
+    return self;
+}
+
 static size_t size(const Heap *self)
 {
     assert(self != NULL);
@@ -158,22 +170,27 @@ static int empty(const Heap *self)
     return data->empty(data);
 }
 
-static int add(Heap *self, const void *item)
+static Heap *add(Heap *self, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (!item) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     HeapPriv *heap = PRIVATE(self);
     ArrayList *data = heap->data;
-    int error = data->append(data, item);
-    if (error) {
-        return error;
+    data->append(data, item);
+    if (data->err) {
+        return sync_err(self, data);
     }
 
     upHeap(heap, data->size(data) - 1);
-    return 0;
+    assert(data->err == 0);
+    return self;
 }
 
 static int peek(const Heap *self, void *dest)
@@ -183,30 +200,33 @@ static int peek(const Heap *self, void *dest)
     return data->get_first_cpy(data, dest);
 }
 
-static int pop(Heap *self, void *dest)
+static Heap *pop(Heap *self, void *dest)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (empty(self)) {
-        return ENOENT;
+        self->err = ENOENT;
+        return self;
     }
 
     HeapPriv *heap = PRIVATE(self);
     ArrayList *data = heap->data;
     int error = data->get_first_cpy(data, dest);
     if (error) {
-        return error;
+        self->err = error;
+        return self;
     }
 
     size_t count = data->size(data);
 
     // Rest should just pass without failing...
-    error = data->swap(data, 0, count - 1);
-    assert(error == 0);
-    error = data->delete_last(data);
-    assert(error == 0);
-    (void)error;
+    data->erase_last(data->swap(data, 0, count - 1));
+    assert(data->err == 0);
     downHeap(heap, 0, count - 1);
-    return 0;
+    assert(data->err == 0);
+    return self;
 }
 
 static void destroy(Heap *self)
@@ -281,7 +301,8 @@ Heap *heap_from_list(const ArrayList *list, size_t memSize, HeapType type, Compa
     // Copy the old list data into the new space
     ArrayList *data = heap->data;
     for (size_t i = 0; i < count; i++) {
-        if (data->append(data, list->get(list, i)) != 0) {
+        data->append(data, list->get(list, i));
+        if (data->err) {
             destroy(&heap->pub);
             return NULL;
         }

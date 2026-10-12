@@ -15,6 +15,7 @@
 
 #include "arrayList.h"
 #include <stddef.h>
+#include <errno.h>
 
 typedef struct Heap Heap;
 
@@ -39,8 +40,22 @@ typedef enum {
  * The remaining fields are private to heap.c. Only heap_create() and
  * heap_from_list() can make a valid heap, so never declare or copy a Heap by
  * value.
+ *
+ * Methods that modify the heap return the heap itself (or NULL if given
+ * NULL) so calls can be chained, and report failure through the err member.
+ * If err is already set, they do nothing. Getters return their result
+ * directly and are unaffected by err.
  */
 struct Heap {
+    /**
+     * @brief Sticky error code from the most recent failed operation.
+     *
+     * Holds 0 while the heap is healthy, otherwise an errno value
+     * (EINVAL, ENOENT or ENOMEM). Reset it to 0 to keep using the heap
+     * after handling the error.
+     */
+    int err;
+
     /**
      * @brief Gets the number of elements currently in the heap.
      *
@@ -64,10 +79,10 @@ struct Heap {
      *
      * @param self The heap to add to.
      * @param item Pointer to the item to copy in, must point to one element.
-     * @return 0 on success, EINVAL if item is NULL, or ENOMEM if the heap
-     *         could not grow.
+     * @return self, so calls can be chained. Sets err to EINVAL if item is
+     *         NULL, or ENOMEM if the heap could not grow.
      */
-    int (*add)(Heap *self, const void *item);
+    Heap *(*add)(Heap *self, const void *item);
 
     /**
      * @brief Copies the top element into a caller-supplied buffer without
@@ -88,10 +103,11 @@ struct Heap {
      *
      * @param self The heap to remove from.
      * @param dest Buffer to copy into, must hold at least one element.
-     * @return 0 on success, EINVAL if dest is NULL, or ENOENT if the heap
-     *         is empty.
+     * @return self, so calls can be chained. Sets err to EINVAL if dest is
+     *         NULL, or ENOENT if the heap is empty. dest is only written on
+     *         success.
      */
-    int (*pop)(Heap *self, void *dest);
+    Heap *(*pop)(Heap *self, void *dest);
 
     /**
      * @brief Frees a heap and its storage.
@@ -119,7 +135,6 @@ struct Heap {
  *         HeapType, cmp is NULL, or memory could not be allocated.
  */
 Heap *heap_create(size_t memSize, HeapType type, Compare cmp);
-
 
 /**
  * @brief Creates a heap holding a copy of every element of a list.
