@@ -9,10 +9,7 @@
 #include "arrayList.h"
 
 #include <assert.h>
-#include <stddef.h>
-#include <stdint.h>
 #include <stdlib.h>
-#include <errno.h>
 #include <string.h>
 
 typedef struct ArrayListPriv {
@@ -72,20 +69,20 @@ static int empty(const ArrayList *self)
     return CONST_PRIVATE(self)->size > 0 ? 0 : 1;
 }
 
-static int swap(ArrayList *self, size_t i, size_t j)
+static ArrayList *swap(ArrayList *self, size_t i, size_t j)
 {
-    ArrayListPriv *list = PRIVATE(self);
-    if (!list) {
-        return EINVAL;
+    if (!self || self->err) {
+        return self;
     }
 
-    size_t size = list->size;
-    if (i >= size || j >= size) {
-        return EINVAL;
+    ArrayListPriv *list = PRIVATE(self);
+    if (i >= list->size || j >= list->size) {
+        self->err = EINVAL;
+        return self;
     }
 
     if (i == j) {
-        return 0;
+        return self;
     }
 
     // Element base addresses
@@ -99,7 +96,7 @@ static int swap(ArrayList *self, size_t i, size_t j)
         *base_j++ = tmp;
     }
 
-    return 0;
+    return self;
 }
 
 static const void *get(const ArrayList *self, size_t idx)
@@ -169,16 +166,21 @@ static int get_last_cpy(const ArrayList *self, void *dest)
     return get_cpy(self, CONST_PRIVATE(self)->size - 1, dest);
 }
 
-static int delete(ArrayList *self, size_t idx)
+static ArrayList *erase(ArrayList *self, size_t idx)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (empty(self)) {
-        return ENOENT;
+        self->err = ENOENT;
+        return self;
     }
 
     ArrayListPriv *list = PRIVATE(self);
     if (idx >= list->size) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     size_t offset = list->elementSize;
@@ -187,56 +189,70 @@ static int delete(ArrayList *self, size_t idx)
     // memmove allows overlapping reigions
     memmove(base + (idx * offset), base + ((idx + 1) * offset), (list->size - idx - 1) * offset);
     list->size--;
-    return 0;
+    return self;
 }
 
-static int delete_first(ArrayList *self)
+static ArrayList *erase_first(ArrayList *self)
 {
-    assert(self != NULL);
-    return delete (self, 0);
+    return erase(self, 0);
 }
 
-static int delete_last(ArrayList *self)
+static ArrayList *erase_last(ArrayList *self)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (empty(self)) {
-        return ENOENT;
+        self->err = ENOENT;
+        ENOMEM;
+        return self;
     }
 
     PRIVATE(self)->size--;
-    return 0;
+    return self;
 }
 
-static int set(ArrayList *self, size_t idx, const void *item)
+static ArrayList *set(ArrayList *self, size_t idx, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     if (empty(self)) {
-        return ENOENT;
+        self->err = ENOENT;
+        return self;
     }
 
     ArrayListPriv *list = PRIVATE(self);
     if (!item || idx >= list->size) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     size_t slot = idx * list->elementSize;
     memcpy(list->data + slot, item, list->elementSize);
-    return 0;
+    return self;
 }
 
-static int insert(ArrayList *self, size_t idx, const void *item)
+static ArrayList *insert(ArrayList *self, size_t idx, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     ArrayListPriv *list = PRIVATE(self);
     if (!item || idx > list->size) {
-        return EINVAL;
+        self->err = EINVAL;
+        return self;
     }
 
     int error = 0;
     if (list->size == list->capacity) {
         error = resize(list);
         if (error) {
-            return error;
+            self->err = error;
+            return self;
         }
     }
 
@@ -249,12 +265,15 @@ static int insert(ArrayList *self, size_t idx, const void *item)
     memmove(movedDataSlot, newDataSlot, (list->size - idx) * list->elementSize);
     memcpy(newDataSlot, item, list->elementSize);
     list->size++;
-    return 0;
+    return self;
 }
 
-static int append(ArrayList *self, const void *item)
+static ArrayList *append(ArrayList *self, const void *item)
 {
-    assert(self != NULL);
+    if (!self || self->err) {
+        return self;
+    }
+
     return insert(self, size(self), item);
 }
 
@@ -296,7 +315,8 @@ ArrayList *arrayList_create_cap(size_t memSize, size_t length)
         return NULL;
     }
 
-    dynamicArray->pub = (const ArrayList){
+    dynamicArray->pub = (ArrayList){
+        .err = 0,
         .size = size,
         .empty = empty,
         .get = get,
@@ -305,9 +325,9 @@ ArrayList *arrayList_create_cap(size_t memSize, size_t length)
         .get_cpy = get_cpy,
         .get_first_cpy = get_first_cpy,
         .get_last_cpy = get_last_cpy,
-        .delete = delete,
-        .delete_first = delete_first,
-        .delete_last = delete_last,
+        .erase = erase,
+        .erase_first = erase_first,
+        .erase_last = erase_last,
         .insert = insert,
         .append = append,
         .set = set,

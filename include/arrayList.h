@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <errno.h>
 
 typedef struct ArrayList ArrayList;
 
@@ -23,8 +24,22 @@ typedef struct ArrayList ArrayList;
  *
  * The remaining fields are private to arrayList.c. Only arrayList_create()
  * can make a valid list, so never declare or copy an ArrayList by value.
+ *
+ * Methods that modify the list return the list itself (or NULL if given
+ * NULL) so calls can be chained, and report failure through the err member.
+ * If err is already set, they do nothing. Getters return their result
+ * directly and are unaffected by err.
  */
 struct ArrayList {
+    /**
+     * @brief Sticky error code from the most recent failed operation.
+     *
+     * Holds 0 while the list is healthy, otherwise an errno value (EINVAL,
+     * ENOENT or ENOMEM). Reset it to 0 to keep using the list after
+     * handling the error.
+     */
+    int err;
+
     /**
      * @brief Gets the number of elements currently stored in the list.
      *
@@ -116,9 +131,10 @@ struct ArrayList {
      * @param self The list to remove from.
      * @param idx  Index of the element to remove, must be less than the
      *             list size.
-     * @return 0 on success, or EINVAL if idx is out of range.
+     * @return self, so calls can be chained. Sets err to ENOENT if the list is
+     *         empty, or EINVAL if idx is out of range.
      */
-    int (*delete)(ArrayList *self, size_t idx);
+    ArrayList *(*erase)(ArrayList *self, size_t idx);
 
     /**
      * @brief Removes the first element.
@@ -126,9 +142,10 @@ struct ArrayList {
      * Remaining elements are shifted down by one, so this is O(n).
      *
      * @param self The list to remove from.
-     * @return 0 on success, or ENOENT if the list is empty.
+     * @return self, so calls can be chained. Sets err to ENOENT if the list is
+     *         empty.
      */
-    int (*delete_first)(ArrayList *self);
+    ArrayList *(*erase_first)(ArrayList *self);
 
     /**
      * @brief Removes the last element.
@@ -136,9 +153,10 @@ struct ArrayList {
      * No elements are shifted, so this is O(1).
      *
      * @param self The list to remove from.
-     * @return 0 on success, or ENOENT if the list is empty.
+     * @return self, so calls can be chained. Sets err to ENOENT if the list is
+     *         empty.
      */
-    int (*delete_last)(ArrayList *self);
+    ArrayList *(*erase_last)(ArrayList *self);
 
     /**
      * @brief Inserts a copy of an item at an index.
@@ -151,10 +169,11 @@ struct ArrayList {
      * @param idx  Index to insert at, from 0 up to and including the list
      *             size (inserting at the size appends).
      * @param item Pointer to the item to copy in, must point to one element.
-     * @return 0 on success, EINVAL if item is NULL or idx is greater than
-     *         the list size, or ENOMEM if the list could not grow.
+     * @return self, so calls can be chained. Sets err to EINVAL if item is
+     *         NULL or idx is greater than the list size, or ENOMEM if the
+     *         list could not grow.
      */
-    int (*insert)(ArrayList *self, size_t idx, const void *item);
+    ArrayList *(*insert)(ArrayList *self, size_t idx, const void *item);
 
     /**
      * @brief Adds a copy of an item to the end of the list.
@@ -164,10 +183,10 @@ struct ArrayList {
      *
      * @param self The list to append to.
      * @param item Pointer to the item to copy in, must point to one element.
-     * @return 0 on success, EINVAL if item is NULL, or ENOMEM if the list
-     *         could not grow.
+     * @return self, so calls can be chained. Sets err to EINVAL if item is
+     *         NULL, or ENOMEM if the list could not grow.
      */
-    int (*append)(ArrayList *self, const void *item);
+    ArrayList *(*append)(ArrayList *self, const void *item);
 
     /**
      * @brief Overwrites the element at an index with a copy of an item.
@@ -179,10 +198,10 @@ struct ArrayList {
      * @param idx  Index of the element to replace, must be less than the
      *             list size.
      * @param item Pointer to the item to copy in, must point to one element.
-     * @return 0 on success, or EINVAL if item is NULL or idx is out of
-     *         range.
+     * @return self, so calls can be chained. Sets err to ENOENT if the list is
+     *         empty, or EINVAL if item is NULL or idx is out of range.
      */
-    int (*set)(ArrayList *self, size_t idx, const void *item);
+    ArrayList *(*set)(ArrayList *self, size_t idx, const void *item);
 
     /**
      * @brief Swaps the elements at two indices.
@@ -195,9 +214,10 @@ struct ArrayList {
      *             size.
      * @param j    Index of the second element, must be less than the list
      *             size.
-     * @return 0 on success, or EINVAL if i or j is out of range.
+     * @return self, so calls can be chained. Sets err to EINVAL if i or j is
+     *         out of range.
      */
-    int (*swap)(ArrayList *self, size_t i, size_t j);
+    ArrayList *(*swap)(ArrayList *self, size_t i, size_t j);
 
     /**
      * @brief Frees a list and its storage.
